@@ -1,0 +1,44 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hashicorp-vault-lb
+  annotations:
+    cloud.google.com/load-balancer-type: "Internal"
+  labels:
+    app: hashicorp-vault
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 10.100.0.39
+  externalTrafficPolicy: Cluster
+  selector:
+    app: hashicorp-vault
+  ports:
+    - name: vault
+      port: 8200
+      targetPort: 8200
+      protocol: TCP
+    - name: replicate
+      port: 8201
+      targetPort: 8201
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hashicorp-vault
+  labels:
+    app: hashicorp-vault
+spec:
+  selector:
+    app: hashicorp-vault
+  clusterIP: None
+  ports:
+    - name: server
+      port: 8200
+      targetPort: 8200
+      protocol: TCP
+    - name: replicate
+      port: 8201
+      targetPort: 8201
+      protocol: TCP

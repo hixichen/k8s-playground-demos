@@ -1,0 +1,47 @@
+ui = true
+
+api_addr = "http://${POD_NAME}.hashicorp-vault.${POD_NAMESPACE}.svc.cluster.local:8200"
+cluster_addr = "http://${POD_NAME}.hashicorp-vault.${POD_NAMESPACE}.svc.cluster.local:8201"
+
+listener "tcp" {
+    address                   = "0.0.0.0:8200"
+    cluster_address           = "0.0.0.0:8201"
+    tls_cert_file             = "/vault/certs/tls.pem"
+    tls_key_file              = "/vault/certs/tls-key.pem"
+    tls_disable_client_certs  = true
+    tls_min_version           = "tls12"
+}
+
+storage "raft" {
+	path       = "/etc/vault/data"
+	node_id = "${POD_NAME}"
+  retry_join = [
+    {
+    "leader_api_addr" = "https://hashicorp-vault-0.hashicorp-vault.${POD_NAMESPACE}.svc.cluster.local:8200"
+    },
+    {
+    "leader_api_addr" = "https://hashicorp-vault-1.hashicorp-vault.${POD_NAMESPACE}.svc.cluster.local:8200"
+    },
+    {
+    "leader_api_addr" = "https://hashicorp-vault-2.hashicorp-vault.${POD_NAMESPACE}.svc.cluster.local:8200"
+    }
+  ]
+}
+
+seal "gcpckms" {
+  project     = "${PROJECT}"
+  region      = "global"
+  key_ring    = "vault-k8s-dev"
+  crypto_key  = "vault-k8s-dev"
+}
+
+telemetry {
+  disable_hostname = true
+  prometheus_retention_time = "0s"
+  metrics_prefix = "${ENVIRONMENT}-${POD_NAME}"
+}
+
+// Avoid roundtrips to the global store
+disable_sealwrap = "true"
+plugin_directory = "/vault/plugins/"
+pid_file = "/var/run/pidfile.pid"

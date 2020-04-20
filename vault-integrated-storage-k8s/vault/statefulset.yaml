@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hashicorp-vault
+  labels:
+    app: hashicorp-vault
+spec:
+  selector:
+    matchLabels:
+      app: hashicorp-vault
+  serviceName: hashicorp-vault
+  replicas: 3
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: hashicorp-vault
+    spec:
+      serviceAccountName: hashicorp-vault
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 60
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values: ["vault"]
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: hashicorp-vault
+        image:  hashicorp-vault
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: LOAD_BALANCER_IP
+            value: $(loadBalancerIP)
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: VAULT_ADDR
+            value: "https://127.0.0.1:8200"
+          - name: SKIP_CHOWN
+            value: "true"
+          - name: SKIP_SETCAP
+            value: "true"
+        envFrom:
+        - configMapRef:
+            name: vault-configuration
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 2048Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        ports:
+            - name: server
+              containerPort: 8200
+              protocol: TCP
+            - name: replication
+              containerPort: 8201
+              protocol: TCP
+        securityContext:
+            capabilities:
+              add:
+                - IPC_LOCK
+        volumeMounts:
+        - mountPath: /vault/config.hcl.template
+          subPath: config.hcl.template
+          name: vault-config-template-volume
+        - mountPath: /vault/certs/vault-csr.json.template
+          subPath: vault-csr.json.template
+          name: vault-config-template-volume
+        - mountPath: /etc/vault/data
+          name: vault-data-volume
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: vault-config-template-volume
+        configMap:
+           name: vault-config-template
+  volumeClaimTemplates:
+  - metadata:
+      name: vault-data-volume
+    spec:
+      storageClassName: "fast"
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi

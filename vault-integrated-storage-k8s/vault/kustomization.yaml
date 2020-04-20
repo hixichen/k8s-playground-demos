@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: default
+resources:
+- rbac.yaml
+- service.yaml
+- statefulset.yaml
+- configmap.yaml
+- storage.yaml
+
+commonLabels:
+  app: hashicorp-vault
+  environment: dev
+
+configMapGenerator:
+- name: vault-config-template
+  files:
+    - config.hcl.template
+    - vault-csr.json.template
+
+vars:
+  - name: loadBalancerIP
+    objref:
+      kind: Service
+      name: hashicorp-vault-lb
+      apiVersion: v1
+    fieldref:
+      fieldpath: spec.loadBalancerIP
+images:
+  - name: hashicorp-vault # match images with this name
+    newTag: "006" # override the tag
+    newName: gcr.io/secret-store-devtest/hashicorp-vault # override the name
